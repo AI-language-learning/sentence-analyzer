@@ -318,6 +318,14 @@ const SUBORDINATORS = new Set(['when','if','because','although','while','since',
 const REL_WORDS = new Set(['who','whom','whose','which','that','where','when']);
 const PHRASAL_PARTICLES = new Set(['up','out','back','off','in','on','over','away','down','around','along','through','into','onto','together']);
 
+function tagsToSet(tagField){
+  // compromise may return tags as an array OR as an object like {Noun:true, Verb:true}
+  if (!tagField) return new Set();
+  if (Array.isArray(tagField)) return new Set(tagField.map(String));
+  if (typeof tagField === 'object') return new Set(Object.keys(tagField));
+  return new Set();
+}
+
 function normalizeTerms(sentenceText, sentenceDoc) {
   try {
     const outTerms = sentenceDoc.terms().out('terms');
@@ -325,7 +333,7 @@ function normalizeTerms(sentenceText, sentenceDoc) {
       return outTerms.map((t, i) => ({
         text: String(t.text || ''),
         normal: String(t.normal || (t.text || '')).toLowerCase(),
-        tags: new Set(Array.isArray(t.tags) ? t.tags : []),
+        tags: tagsToSet(t.tags),
         pre: typeof t.pre === 'string' ? t.pre : (i === 0 ? '' : ' '),
         post: typeof t.post === 'string' ? t.post : '',
         index: i,
@@ -339,9 +347,9 @@ function normalizeTerms(sentenceText, sentenceDoc) {
       const words = j.map(x => String(x.text || ''));
       const noSpaceBefore = new Set([',', '.', '!', '?', ';', ':', ')', ']', '}', "'s"]);
       return words.map((w, i) => {
-        const tagsArr = (j[i] && Array.isArray(j[i].tags)) ? j[i].tags : [];
-        const pre = (i === 0) ? '' : (noSpaceBefore.has(w) ? '' : ' ');
-        return { text:w, normal:w.toLowerCase(), tags:new Set(tagsArr), pre, post:'', index:i };
+        const tagsSet = tagsToSet(j[i] && j[i].tags);
+      const pre = (i === 0) ? '' : (noSpaceBefore.has(w) ? '' : ' ');
+        return { text:w, normal:w.toLowerCase(), tags:tagsSet, pre, post:'', index:i };
       });
     }
   } catch (_) {}
