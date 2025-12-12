@@ -1,488 +1,902 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>English Sentence Structure Analyzer</title>
-    <meta charset="UTF-8">
-    <script src="https://cdn.jsdelivr.net/npm/compromise@14.1.0/builds/compromise.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; }
-        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #333; margin-bottom: 20px; }
-        textarea { width: 100%; height: 80px; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
-        .buttons-container { text-align: center; margin-bottom: 30px; }
-        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
-        #analyzeButton { background-color: #007bff; color: white; }
-        #analyzeButton:hover { background-color: #0056b3; }
-        .token { display: inline-block; position: relative; padding: 0 2px; margin: 0 1px; line-height: 1.5; }
-        
-        /* Clause Boxes */
-        .clause-box { 
-            border: 2px solid; 
-            padding: 5px; 
-            margin: 10px 0; 
-            border-radius: 8px; 
-            display: inline-block; 
-            position: relative; 
-            line-height: 2.0;
-        }
-        .clause-sub { border-color: orange; }
-        .clause-sub::before { content: "Subordinate Clause"; position: absolute; top: -10px; left: 5px; background: orange; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: bold; }
-        .clause-rel { border-color: purple; }
-        .clause-rel::before { content: "Relative Clause"; position: absolute; top: -10px; left: 5px; background: purple; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>English Sentence Structure Analyzer (GitHub Pages)</title>
 
-        /* Role Highlighting (Badges/Groups) */
-        .badge-S::after, .badge-s::after, .badge-V::after, .badge-v::after {
-            position: absolute;
-            top: -1.2em;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 10px;
-            font-weight: bold;
-            padding: 1px 3px;
-            border-radius: 3px;
-            color: white;
-        }
+  <!-- Compromise NLP: CDN with local fallback.
+       Put a copy at: ./vendor/compromise.min.js (recommended for GitHub Pages reliability) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/compromise@14.14.4/builds/compromise.min.js"
+          onerror="window.__NLP_CDN_FAILED__=true;"></script>
+  <script>
+    // If CDN fails, try local vendor copy (works on GitHub Pages).
+    window.addEventListener('error', function (e) {
+      const t = e && e.target;
+      if (t && t.tagName === 'SCRIPT' && (t.src || '').includes('compromise')) {
+        const s = document.createElement('script');
+        s.src = './vendor/compromise.min.js';
+        s.defer = true;
+        document.head.appendChild(s);
+      }
+    }, true);
+  </script>
 
-        /* Main Clause Roles */
-        .subject-group-S, .badge-S { color: blue; }
-        .badge-S::after { content: "S"; background: blue; }
-        .badge-V::after { content: "V"; background: red; }
-        .badge-V { color: red; }
+  <style>
+    :root{
+      --bg:#f4f4f9;
+      --card:#ffffff;
+      --text:#222;
+      --muted:#666;
+      --border:#e5e7eb;
+      --shadow:0 6px 18px rgba(0,0,0,.08);
 
-        /* Subordinate Clause Roles */
-        .subject-group-s, .badge-s { color: #008080; } /* Teal */
-        .badge-s::after { content: "s"; background: #008080; }
-        .badge-v::after { content: "v"; background: #cc00cc; } /* Magenta */
-        .badge-v { color: #cc00cc; }
-        
-        /* Connector */
-        .connector { color: gray; font-weight: bold; }
+      --S:#2563eb;       /* blue */
+      --V:#dc2626;       /* red */
+      --s:#0f766e;       /* teal */
+      --v:#c026d3;       /* magenta */
+      --sub:#f59e0b;     /* orange */
+      --rel:#7c3aed;     /* purple */
+      --conn:#9ca3af;    /* gray */
+      --ant:#111827;     /* near-black */
+      --ant-bg:#fff7ed;  /* light orange tint */
+    }
 
-        /* Legend */
-        .legend { margin-top: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
-        .legend-item { display: inline-block; margin-right: 20px; font-size: 14px; }
-        .color-box { width: 15px; height: 15px; display: inline-block; margin-right: 5px; border: 1px solid #ccc; vertical-align: middle; }
-        .legend .blue { background-color: blue; }
-        .legend .red { background-color: red; }
-        .legend .teal { background-color: #008080; }
-        .legend .magenta { background-color: #cc00cc; }
-        .legend .yellow { background-color: orange; }
-        .legend .purple { background-color: purple; }
-        .legend .gray { background-color: #aaa; }
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background:var(--bg);
+      color:var(--text);
+      margin:0;
+      padding:24px;
+    }
 
-        .error-message { color: red; font-weight: bold; margin-top: 20px; padding: 10px; border: 1px solid red; border-radius: 5px; background-color: #ffe0e0; }
+    .container{
+      max-width: 980px;
+      margin: 0 auto;
+      background:var(--card);
+      padding: 24px 22px;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
 
-    </style>
+    h1{ margin: 0 0 10px; font-size: 22px; text-align:center; }
+    p.sub{
+      margin: 0 0 18px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    textarea{
+      width:100%;
+      min-height: 92px;
+      resize: vertical;
+      padding: 12px 12px;
+      font-size: 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      box-sizing: border-box;
+      outline: none;
+    }
+    textarea:focus{
+      border-color:#93c5fd;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.2);
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap: wrap;
+      margin: 14px 0 18px;
+    }
+
+    button{
+      padding: 10px 14px;
+      font-size: 14px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      cursor:pointer;
+      background:#f9fafb;
+      transition: transform .03s ease, background .2s ease;
+    }
+    button:hover{ background:#f3f4f6; }
+    button:active{ transform: translateY(1px); }
+
+    button.primary{
+      background:#2563eb;
+      border-color:#2563eb;
+      color:white;
+    }
+    button.primary:hover{ background:#1d4ed8; }
+
+    .result{
+      margin-top: 10px;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fcfcfd;
+      overflow-x:auto;
+    }
+
+    /* === Rendering tokens without overlap ===
+       Each token is an inline-flex column: label on top, surface below. */
+    .token{
+      display:inline-flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 1px;
+      vertical-align: bottom;
+      line-height: 1.1;
+    }
+    .token .label{
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 6px;
+      color: white;
+      margin-bottom: 2px;
+      user-select:none;
+      line-height: 1.2;
+    }
+    .token .surf{
+      padding: 1px 2px;
+      border-radius: 6px;
+      line-height: 1.8; /* readable */
+      white-space: pre;  /* keep spaces/punct as provided */
+    }
+
+    .role-S .surf{ color: var(--S); }
+    .role-V .surf{ color: var(--V); }
+    .role-s .surf{ color: var(--s); }
+    .role-v .surf{ color: var(--v); }
+    .role-connector .surf{ color: var(--conn); font-weight: 700; }
+    .role-none .surf{ color: var(--text); }
+
+    .role-S .label{ background: var(--S); }
+    .role-V .label{ background: var(--V); }
+    .role-s .label{ background: var(--s); }
+    .role-v .label{ background: var(--v); }
+    .role-connector .label{ background: var(--conn); }
+    .role-none .label{ background: transparent; padding:0; margin:0; height: 12px; } /* spacer */
+
+    /* antecedent highlight */
+    .antecedent .surf{
+      outline: 2px solid rgba(245,158,11,.35);
+      background: var(--ant-bg);
+      color: var(--ant);
+      padding: 1px 4px;
+    }
+
+    /* Clause boxes */
+    .clause-box{
+      display:inline-block;
+      position: relative;
+      padding: 10px 10px 8px;
+      margin: 8px 0;
+      border-radius: 14px;
+      border: 2px solid;
+      line-height: 2.0;
+    }
+    .clause-box > .clause-label{
+      position:absolute;
+      top:-11px;
+      left:10px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      color:white;
+      padding: 2px 8px;
+      border-radius: 999px;
+      user-select:none;
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+    }
+    .clause-sub{ border-color: var(--sub); }
+    .clause-sub > .clause-label{ background: var(--sub); }
+    .clause-rel{ border-color: var(--rel); }
+    .clause-rel > .clause-label{ background: var(--rel); }
+
+    .legend{
+      margin-top: 16px;
+      padding: 12px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items:center;
+      justify-content: center;
+    }
+    .leg-item{ font-size: 13px; color: var(--muted); display:flex; align-items:center; gap:8px; }
+    .swatch{
+      width: 14px; height: 14px; border-radius: 4px;
+      border: 1px solid rgba(0,0,0,.12);
+    }
+    .sw-S{ background: var(--S); }
+    .sw-V{ background: var(--V); }
+    .sw-s{ background: var(--s); }
+    .sw-v{ background: var(--v); }
+    .sw-sub{ background: var(--sub); }
+    .sw-rel{ background: var(--rel); }
+    .sw-conn{ background: var(--conn); }
+
+    .error{
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(220,38,38,.5);
+      background: rgba(220,38,38,.06);
+      color: #991b1b;
+      font-weight: 650;
+      line-height: 1.55;
+    }
+
+    .small-note{
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    code.kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+  </style>
 </head>
+
 <body>
-
-<div class="container">
+  <div class="container">
     <h1>English Sentence Structure Analyzer</h1>
-    <textarea id="inputText" placeholder="例: The woman who lives next door is a doctor."></textarea>
-    <div class="buttons-container">
-        <button id="analyzeButton" onclick="analyzeStructure()">Analyze Structure</button>
-    </div>
-    
-    <div id="result-container">
-        </div>
+    <p class="sub">
+      Visualizes <b>Subordinate clauses</b>, <b>Relative clauses</b> (incl. preposition + relative), and <b>Antecedents</b>.
+      Marks <b>Subject</b>/<b>Verb</b> per clause. Designed for GitHub Pages.
+    </p>
 
-    <div class="legend">
-        <div class="legend-item"><span class="color-box blue"></span> Main Subject (S)</div>
-        <div class="legend-item"><span class="color-box red"></span> Main Verb (V)</div>
-        <div class="legend-item"><span class="color-box teal"></span> Subordinate Subject (s)</div>
-        <div class="legend-item"><span class="color-box magenta"></span> Subordinate Verb (v)</div>
-        <div class="legend-item"><span class="color-box yellow"></span> Subordinate Clause (When/If...)</div>
-        <div class="legend-item"><span class="color-box purple"></span> Relative Clause (who/that...)</div>
-        <div class="legend-item"><span class="color-box gray"></span> Connector/Other</div>
+    <textarea id="inputText" placeholder="Example:
+When I arrived, the woman who lives next door has been making dinner for my dad, mom and brother."></textarea>
+
+    <div class="row">
+      <button class="primary" id="analyzeBtn">Analyze</button>
+      <button id="sampleBtn">Insert sample</button>
+      <button id="clearBtn">Clear</button>
     </div>
-</div>
+
+    <div id="result" class="result" aria-live="polite"></div>
+
+    <div class="legend" aria-hidden="true">
+      <div class="leg-item"><span class="swatch sw-S"></span>Main Subject (S)</div>
+      <div class="leg-item"><span class="swatch sw-V"></span>Main Verb (V)</div>
+      <div class="leg-item"><span class="swatch sw-s"></span>Clause Subject (s)</div>
+      <div class="leg-item"><span class="swatch sw-v"></span>Clause Verb (v)</div>
+      <div class="leg-item"><span class="swatch sw-sub"></span>Subordinate Clause</div>
+      <div class="leg-item"><span class="swatch sw-rel"></span>Relative Clause</div>
+      <div class="leg-item"><span class="swatch sw-conn"></span>Connector/Other</div>
+    </div>
+
+    <div class="small-note">
+      <b>GitHub Pages reliability tip:</b> download <code class="kbd">compromise.min.js</code> and place it at
+      <code class="kbd">/vendor/compromise.min.js</code>. This page will automatically fall back to the local copy if CDN fails.
+    </div>
+  </div>
 
 <script>
-    // --- Token Class Definition ---
-    class Token {
-        constructor(text, tags, pre, post, index) {
-            this.text = text;
-            this.tags = tags;
-            this.pre = pre || '';
-            this.post = post || '';
-            this.index = index; 
+/* ===========================
+   Robust tokenization helpers
+   =========================== */
 
-            // Simplified Tag Checks
-            this.isNoun = tags.has('Noun') || tags.has('Plural');
-            this.isVerb = tags.has('Verb') || tags.has('PastTense') || tags.has('Gerund');
-            this.isCompoundVerb = tags.has('CompoundVerb');
-            // 従属接続詞
-            this.isSub = tags.has('Conjunction') && (text.toLowerCase() === 'when' || text.toLowerCase() === 'if' || text.toLowerCase() === 'because' || text.toLowerCase() === 'although' || text.toLowerCase() === 'while');
-            // 関係代名詞/関係副詞
-            this.isRel = tags.has('RelativePronoun') || (tags.has('Conjunction') && text.toLowerCase() === 'that');
-            this.isRelSubject = false; 
-            
-            // Parsing properties
-            this.role = null; 
-            this.role_group = null; 
-            this.isAntecedent = false;
-        }
+function normalizeTerms(sentenceText, sentenceDoc) {
+  // Try multiple compromise outputs and normalize to:
+  // {text, tags:Set<string>, pre, post, index, normal}
+  let terms = [];
+  try {
+    // Some builds support out('terms')
+    const outTerms = sentenceDoc.terms().out('terms');
+    if (Array.isArray(outTerms) && outTerms.length && outTerms[0] && outTerms[0].text) {
+      // out('terms') often gives: {text, tags:[...], pre, post, normal}
+      terms = outTerms.map((t, i) => ({
+        text: String(t.text || ''),
+        normal: String(t.normal || (t.text || '')).toLowerCase(),
+        tags: new Set(Array.isArray(t.tags) ? t.tags : []),
+        pre: typeof t.pre === 'string' ? t.pre : (i === 0 ? '' : ' '),
+        post: typeof t.post === 'string' ? t.post : '',
+        index: i,
+      }));
+      return terms;
+    }
+  } catch (_) {}
+
+  // Fallback: use terms().json() and reconstruct spacing heuristically.
+  // We preserve punctuation by attaching it as post if it appears in original.
+  try {
+    const j = sentenceDoc.terms().json();
+    if (Array.isArray(j) && j.length) {
+      const words = j.map(x => String(x.text || ''));
+      // Basic spacing: insert space between tokens except before punctuation.
+      const noSpaceBefore = new Set([',', '.', '!', '?', ';', ':', ')', ']', '}', "'s"]);
+      terms = words.map((w, i) => {
+        const tagsArr = (j[i] && Array.isArray(j[i].tags)) ? j[i].tags : [];
+        const pre = (i === 0) ? '' : (noSpaceBefore.has(w) ? '' : ' ');
+        return { text:w, normal:w.toLowerCase(), tags:new Set(tagsArr), pre, post:'', index:i };
+      });
+      return terms;
+    }
+  } catch (_) {}
+
+  // Ultimate fallback: split the raw string (no POS tags).
+  const rough = sentenceText.match(/[\w’']+|[^\s\w]/g) || [];
+  return rough.map((w, i) => ({
+    text: w,
+    normal: w.toLowerCase(),
+    tags: new Set(),
+    pre: i === 0 ? '' : (/[.,!?;:)\]]/.test(w) ? '' : ' '),
+    post: '',
+    index: i
+  }));
+}
+
+class Token {
+  constructor(text, tags, pre, post, index) {
+    this.text = text;
+    this.normal = text.toLowerCase();
+    this.tags = tags || new Set();
+    this.pre = pre || '';
+    this.post = post || '';
+    this.index = index || 0;
+
+    this.isNoun = this.tags.has('Noun') || this.tags.has('Plural') || this.tags.has('ProperNoun');
+    this.isPronoun = this.tags.has('Pronoun');
+    this.isDeterminer = this.tags.has('Determiner');
+    this.isPossessive = this.tags.has('Possessive');
+    this.isAdjective = this.tags.has('Adjective');
+    this.isPreposition = this.tags.has('Preposition');
+    this.isParticle = this.tags.has('Particle');
+    this.isAdverb = this.tags.has('Adverb');
+    this.isConjunction = this.tags.has('Conjunction');
+
+    // Clause openers (subordinate)
+    this.isSub = false;
+    // Relative introducers
+    this.isRel = false;
+    // "prep + rel" helper
+    this.isRelPrep = false;
+
+    // Combined verb phrase / combined NP markers
+    this.isVerbPhrase = this.tags.has('VerbPhrase');
+    this.isVerb = this.tags.has('Verb') || this.tags.has('PastTense') || this.tags.has('Gerund') || this.tags.has('Participle');
+    this.isAuxOrModal = this.tags.has('Auxiliary') || this.tags.has('Modal');
+
+    this.role = null;       // 'S','V','s','v','connector'
+    this.role_group = null; // group membership for NP
+    this.isAntecedent = false;
+  }
+}
+
+function isPunct(tok) {
+  return /^[,.;:!?]$/.test(tok.text);
+}
+
+function isClauseBoundary(tok) {
+  return tok.isSub || tok.isRel || tok.isRelPrep;
+}
+
+function isCoordinator(tok) {
+  const w = tok.normal.replace(/[^a-z,]/g,'');
+  return w === 'and' || w === 'or' || w === ',';
+}
+
+function isSubjectPiece(tok) {
+  const w = tok.normal.replace(/[^a-z,]/g,'');
+  return tok.isDeterminer || tok.isPossessive || tok.isAdjective || tok.isNoun || tok.isPronoun || w === 'and' || w === 'or' || w === ',';
+}
+
+function looksLikeVerb(tok) {
+  return tok.isVerbPhrase || tok.isVerb || tok.tags.has('Verb') || tok.tags.has('PastTense') || tok.tags.has('Gerund') || tok.tags.has('Participle');
+}
+
+/* ========================================
+   Preprocessing: combine verb phrases, etc.
+   ======================================== */
+
+const SUBORDINATORS = new Set([
+  'when','if','because','although','while','since','after','before','until','unless','once','as','whereas','even','though'
+]);
+
+const REL_WORDS = new Set(['who','whom','whose','which','that','where','when']); // when can be rel (handled by context)
+
+const PHRASAL_PARTICLES = new Set([
+  'up','out','back','off','in','on','over','away','down','around','along','through','into','onto','together'
+]);
+
+function preprocess(rawTerms) {
+  // 1) create base tokens
+  let tokens = rawTerms.map(rt => new Token(rt.text, rt.tags, rt.pre, rt.post, rt.index));
+
+  // 2) mark subordinators/rel with context-aware rule for "when"
+  for (let i=0;i<tokens.length;i++){
+    const t = tokens[i];
+    const w = t.normal.replace(/[^a-z]/g,'');
+    if (t.isConjunction && SUBORDINATORS.has(w)) t.isSub = true;
+
+    // relative: who/which/that/where/when etc.
+    if (REL_WORDS.has(w)) {
+      // "when" is ambiguous; treat as rel only if left looks like antecedent (noun-ish), otherwise it's a subordinator.
+      if (w === 'when') {
+        const prev = tokens[i-1];
+        const prevLooksNounish = prev && (prev.isNoun || prev.isPronoun || prev.role_group === 'S' || prev.role_group === 's');
+        if (prevLooksNounish && !t.isSub) t.isRel = true;
+      } else {
+        t.isRel = true;
+      }
     }
 
-    // Helper function to check if a token can be part of a subject group
-    function isSubjectComponent(token) {
-        const lower = token.text.toLowerCase().replace(/[^a-z,]/g, '');
-        // Determiner, Possessive, Noun, Pronoun, comma, and, or
-        return token.tags.has('Determiner') || token.tags.has('Possessive') || token.isNoun || token.tags.has('Pronoun') || lower === 'and' || lower === 'or' || lower === ',';
+    // compromise sometimes tags RelativePronoun
+    if (t.tags.has('RelativePronoun')) t.isRel = true;
+  }
+
+  // 3) detect prep + relative (with whom / in which)
+  for (let i=1;i<tokens.length;i++){
+    if (tokens[i].isRel && tokens[i-1].isPreposition) {
+      tokens[i-1].isRelPrep = true; // the prep will be treated as connector, rel will open clause
+    }
+  }
+
+  // 4) combine "next door" etc (token-based, no offsets)
+  const COMPOUND_ADVERBS = [
+    ['next','door'],
+    ['right','now'],
+    ['at','least'],
+    ['in','front','of'],
+    ['as','well','as']
+  ];
+  tokens = combineFixedPhrases(tokens, COMPOUND_ADVERBS, 'AdverbPhrase');
+
+  // 5) combine verb phrases (aux/modal + ... + main verb)
+  tokens = combineVerbPhrases(tokens);
+
+  // 6) combine phrasal verbs: VerbPhrase/Verb + particle/adverb (come back / look up)
+  tokens = combinePhrasalVerbs(tokens);
+
+  return tokens;
+}
+
+function combineFixedPhrases(tokens, patterns, tagName){
+  let out = [];
+  for (let i=0; i<tokens.length; i++){
+    let matched = null;
+    for (const pat of patterns){
+      let ok = true;
+      for (let k=0;k<pat.length;k++){
+        if (!tokens[i+k] || tokens[i+k].normal !== pat[k]) { ok=false; break; }
+      }
+      if (ok) { matched = pat; break; }
+    }
+    if (!matched) { out.push(tokens[i]); continue; }
+
+    const start = i;
+    const end = i + matched.length - 1;
+    const text = matched.map((_,k)=>tokens[start+k].text).join(' ');
+    const pre = tokens[start].pre;
+    const post = tokens[end].post;
+    const tags = new Set(['Adverb','Compound',tagName]);
+    const t = new Token(text, tags, pre, post, tokens[start].index);
+    out.push(t);
+    i = end;
+  }
+  return out;
+}
+
+function combineVerbPhrases(tokens){
+  // Heuristic:
+  // [Modal/Aux] (not) (been)? (being)? (have/has/had)? + (past/participle/gerund/verb)
+  // Examples:
+  // has been making / had gone / will go / is located / has not been working
+  let out = [];
+  for (let i=0;i<tokens.length;i++){
+    const t = tokens[i];
+    const w = t.normal;
+
+    // start only if auxiliary/modal OR a verb that is "be/have/do" auxiliary-ish
+    const auxStart = t.isAuxOrModal || ['am','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','can','could','may','might','must','shall','should'].includes(w);
+    if (!auxStart) { out.push(t); continue; }
+
+    // collect sequence
+    let j = i;
+    let parts = [tokens[j]];
+    let consumed = false;
+
+    // allow "not"
+    if (tokens[j+1] && tokens[j+1].normal === 'not') { parts.push(tokens[++j]); }
+
+    // allow been/being
+    if (tokens[j+1] && ['been','being'].includes(tokens[j+1].normal)) { parts.push(tokens[++j]); }
+
+    // require a following verb-ish token to make it a phrase (otherwise keep as-is)
+    // (Also allow "to" + verb for "going to leave" if needed; keep minimal here)
+    if (tokens[j+1] && looksLikeVerb(tokens[j+1])) {
+      parts.push(tokens[++j]);
+      // Optionally include one more (e.g., "been being repaired" rare; or "going to go")
+      // We'll also include a particle immediately after (handled later).
+      consumed = true;
     }
 
-    // --- Step 1: Preprocessing (Combine Compound Verbs & Phrasal Verbs, and Adverb Phrases) ---
-    function preprocessTokens(sentence) {
-        let rawTerms = sentence.termList();
-        let combinedData = [];
-        const termLength = rawTerms.length;
+    if (!consumed) { out.push(t); continue; }
 
-        // --- 1. 動詞の結合ロジック ---
-        for (let i = 0; i < termLength; i++) {
-             let size = 1;
-             
-             // 1-1. 完了形/進行形/助動詞の結合
-             if (rawTerms[i].tags.has('Auxiliary') || rawTerms[i].tags.has('Modal')) {
-                 
-                 // 3語結合 (has been working)
-                 if (i + 2 < termLength && rawTerms[i+1].text.toLowerCase() === 'been' && rawTerms[i+2].tags.has('Gerund')) {
-                     size = 3;
-                 }
-                 // 2語結合 (had left, will go) - 3語結合の条件を満たさない場合
-                 else if (size === 1 && i + 1 < termLength && (rawTerms[i+1].tags.has('Verb') || rawTerms[i+1].tags.has('Participle') || rawTerms[i+1].tags.has('Gerund'))) { 
-                     size = 2;
-                 }
-             }
+    const text = parts.map(x=>x.text).join(' ');
+    const pre = parts[0].pre;
+    const post = parts[parts.length-1].post;
+    const tags = new Set(['Verb','VerbPhrase']);
+    const nt = new Token(text, tags, pre, post, parts[0].index);
+    // carry clause boundary flags only from the first token (usually none for aux)
+    nt.isSub = false; nt.isRel = false; nt.isRelPrep = false;
+    out.push(nt);
+    i = j;
+  }
+  return out;
+}
 
-             // 1-2. 句動詞の結合 (came back, look up)
-             if (rawTerms[i].tags.has('Verb') && size === 1 && i + 1 < termLength && (rawTerms[i+1].tags.has('Particle') || rawTerms[i+1].tags.has('Adverb'))) {
-                 size = 2;
-             }
+function combinePhrasalVerbs(tokens){
+  let out = [];
+  for (let i=0;i<tokens.length;i++){
+    const t = tokens[i];
+    if (!looksLikeVerb(t)) { out.push(t); continue; }
 
-             // 結合サイズが1より大きく、かつ範囲内であるかを確認
-             if (size > 1 && (i + size - 1 < termLength)) {
-                 const isOverlapped = combinedData.some(d => d.start >= i && d.start < i + size); 
-                 if (!isOverlapped) {
-                     combinedData.push({ start: i, size: size, type: 'Verb' });
-                     i += size - 1; 
-                 }
-             }
-        }
+    const next = tokens[i+1];
+    if (!next) { out.push(t); continue; }
+    if (isClauseBoundary(next)) { out.push(t); continue; }
 
-        // --- 2. 副詞句の結合 (next door) ---
-        // nlpが未定義の場合はスキップ（analyzeStructureでチェックされる）
-        if (typeof nlp === 'function') {
-            let doc = nlp(sentence.text());
-            let nextDoor = doc.match('next door').out('offsets');
-            nextDoor.forEach(nd => {
-                const isOverlapped = combinedData.some(d => d.start >= nd.offset.index && d.start < nd.offset.index + nd.size);
-                if (!isOverlapped) {
-                    combinedData.push({ start: nd.offset.index, size: nd.size, type: 'Adverb' });
-                }
-            });
-        }
+    const nw = next.normal.replace(/[^a-z]/g,'');
+    const canAttach = (next.isParticle || next.isAdverb || next.tags.has('Particle') || next.tags.has('Adverb')) && PHRASAL_PARTICLES.has(nw);
 
-        // --- 3. 最終トークンリストの作成 ---
-        let tokens = [];
-        let skipUntil = -1;
+    if (!canAttach) { out.push(t); continue; }
 
-        for (let i = 0; i < termLength; i++) {
-            if (i <= skipUntil) continue;
-            
-            let combinedItem = combinedData.find(p => p.start === i);
-            
-            if (combinedItem) {
-                let combinedText = "";
-                let combinedPre = rawTerms[i].pre;
-                
-                // 終端要素の post を安全に取得
-                const endIndex = i + combinedItem.size - 1;
-                let combinedPost = (endIndex < termLength) ? rawTerms[endIndex].post : ""; 
-                
-                let tags = combinedItem.type === 'Verb' ? new Set(['Verb', 'CompoundVerb']) : new Set(['Adverb', 'Compound']);
+    const text = t.text + ' ' + next.text;
+    const pre = t.pre;
+    const post = next.post;
+    const tags = new Set(['Verb','VerbPhrase','PhrasalVerb']);
+    const nt = new Token(text, tags, pre, post, t.index);
+    out.push(nt);
+    i += 1;
+  }
+  return out;
+}
 
-                for (let j = 0; j < combinedItem.size; j++) {
-                    if (i+j < termLength) {
-                        combinedText += (j > 0 ? " " : "") + rawTerms[i+j].text;
-                    }
-                }
-                
-                let t = new Token(combinedText, tags, combinedPre, combinedPost, i);
-                tokens.push(t);
-                skipUntil = endIndex;
-            } else {
-                // 通常のトークン
-                tokens.push(new Token(rawTerms[i].text, new Set(rawTerms[i].tags), rawTerms[i].pre, rawTerms[i].post, i));
-            }
-        }
-        
-        // 関係代名詞が主語を兼ねる場合のマーク
-        for (let i = 0; i < tokens.length - 1; i++) {
-            if (tokens[i].isRel && (tokens[i+1].isVerb || tokens[i+1].isCompoundVerb)) {
-                tokens[i].isRelSubject = true;
-            }
-        }
+/* ===========================
+   Parsing: clause tree + S/V
+   =========================== */
 
-        return tokens;
+function parse(tokens){
+  const root = { type:'root', children:[], S:null, V:null };
+  const stack = [root];
+
+  function current(){ return stack[stack.length-1]; }
+
+  function openClause(type, openerToken, antecedentToken){
+    const node = { type, children:[], S:null, V:null, antecedent: antecedentToken || null };
+    current().children.push(node);
+    stack.push(node);
+    // Add opener token itself as connector
+    openerToken.role = 'connector';
+    node.children.push({token: openerToken});
+  }
+
+  function closeClause(){
+    if (stack.length > 1) stack.pop();
+  }
+
+  function markSubjectGroup(scope, headIndex, roleChar){
+    // mark head token role (S/s)
+    const head = tokens[headIndex];
+    head.role = roleChar;
+    head.role_group = roleChar;
+
+    // expand left within same clause until boundary/stop
+    for (let k=headIndex-1;k>=0;k--){
+      const tk = tokens[k];
+      if (isClauseBoundary(tk)) break;
+      if (tk.role) break;
+      if (!isSubjectPiece(tk)) break;
+      tk.role_group = roleChar;
+    }
+    // expand right until verb/boundary/stop
+    for (let k=headIndex+1;k<tokens.length;k++){
+      const tk = tokens[k];
+      if (isClauseBoundary(tk)) break;
+      if (looksLikeVerb(tk)) break;
+      if (tk.role) break;
+      if (!isSubjectPiece(tk)) break;
+      tk.role_group = roleChar;
+    }
+  }
+
+  function findAntecedentIndex(i){
+    // find nearest noun-ish token to the left (skip punctuation)
+    for (let k=i-1;k>=0;k--){
+      const tk = tokens[k];
+      if (isClauseBoundary(tk)) break; // don't cross another opener
+      if (tk.isNoun || tk.isPronoun || tk.tags.has('ProperNoun')) return k;
+    }
+    return -1;
+  }
+
+  // Pass 1: build clause nodes using openers.
+  for (let i=0;i<tokens.length;i++){
+    let t = tokens[i];
+    const w = t.normal.replace(/[^a-z]/g,'');
+
+    // If token is a preposition that isRelPrep, keep it as connector, but let the following rel open clause.
+    if (t.isRelPrep){
+      t.role = 'connector';
+      current().children.push({token:t});
+      continue;
     }
 
-    // --- Step 2: Structure Parsing ---
-    function parseStructure(tokens) {
-        let root = { type: 'root', children: [], mainS: null, mainV: null, sCount: 0, vCount: 0 };
-        let stack = [root]; 
-
-        for (let i = 0; i < tokens.length; i++) {
-            let t = tokens[i];
-            let currentScope = stack[stack.length - 1];
-
-            // A. Clause Opening
-            if (t.isSub || t.isRel) {
-                let type = t.isSub ? 'sub' : 'rel';
-                let newClause = { 
-                    type: type, children: [], clauseS: null, clauseV: null, sCount: 0, vCount: 0 
-                };
-                
-                // Antecedent Marking for RELATIVE CLAUSES
-                if (type === 'rel' && i > 0) {
-                    let prevToken = tokens[i-1];
-                    if (prevToken.isNoun || prevToken.role_group === 'S' || prevToken.role_group === 's') {
-                        newClause.antecedent = prevToken;
-                        prevToken.isAntecedent = true;
-                    }
-                }
-
-                currentScope.children.push(newClause);
-                stack.push(newClause);
-                currentScope = newClause; 
-
-                // Process the connector token itself
-                if (t.isRelSubject) {
-                    t.role = 's';
-                    currentScope.clauseS = t;
-                    currentScope.sCount++;
-                } else {
-                    t.role = 'connector';
-                }
-                currentScope.children.push({ token: t });
-                continue; 
-            }
-            
-            // B. Clause Closing Logic (After opening logic)
-            // 関係節の終了判定: Noun [who... v] V
-            if (currentScope.type === 'rel' && currentScope.clauseV) {
-                let isPotentialMainVerb = t.isVerb || t.isCompoundVerb;
-                // 修正: stack.length > 1 に変更（ネスト構造に対応）
-                if (isPotentialMainVerb && stack.length > 1 && currentScope.antecedent) {
-                     stack.pop(); 
-                     currentScope = stack[stack.length - 1]; 
-                }
-            }
-            // 文頭の従属節の終了判定: (When ... v), S V
-            else if (currentScope.type === 'sub' && currentScope.clauseV) {
-                let isPotentialMainSubjectStart = t.tags.has('Determiner') || t.tags.has('Possessive') || t.isNoun || t.tags.has('Pronoun');
-                // 修正: stack.length > 1 に変更
-                if (isPotentialMainSubjectStart && stack.length > 1) { 
-                    stack.pop(); 
-                    currentScope = stack[stack.length - 1]; 
-                }
-            } 
-
-
-            // C. Role Assignment (S/V/s/v)
-            
-            let isVerb = t.isVerb || t.isCompoundVerb;
-            
-            if (isVerb) {
-                // スコープ内で未割り当ての最初の動詞を V/v とする
-                if (currentScope.type === 'root') {
-                    if (!currentScope.mainV) {
-                        t.role = 'V';
-                        currentScope.mainV = t;
-                        currentScope.vCount++;
-                    }
-                } else { 
-                    if (!currentScope.clauseV) {
-                        t.role = 'v';
-                        currentScope.clauseV = t;
-                        currentScope.vCount++;
-                    }
-                }
-            } else if (t.isNoun || t.tags.has('Determiner') || t.tags.has('Possessive') || t.tags.has('Pronoun')) {
-                
-                let isSubjectCandidate = t.tags.has('Determiner') || t.tags.has('Possessive') || t.isNoun || t.tags.has('Pronoun');
-                let isSubjectHead = false;
-
-                // スコープ内の最初の Determiner/Noun/Pronoun かつ、動詞が後続するかチェック
-                let isFirstSubjectCandidate = (currentScope.type === 'root' && !currentScope.mainS && !currentScope.mainV) || 
-                                              (currentScope.type !== 'root' && !currentScope.clauseS && !currentScope.clauseV);
-                
-                let isFollowedByVerb = false;
-                let lookAhead = i + 1;
-                let maxLookAhead = 20; // 修正: 無限ループ防止
-                let lookCount = 0;
-                
-                // 修正: 現在のスコープ内でのみ検索するように改善
-                while (lookAhead < tokens.length && lookCount < maxLookAhead) {
-                    let next = tokens[lookAhead];
-                    
-                    // 節の境界に達したら停止
-                    if (next.isSub || next.isRel) break;
-                    
-                    if (next.isVerb || next.isCompoundVerb) {
-                        isFollowedByVerb = true;
-                        break;
-                    }
-                    if (next.text === ',' || next.text.toLowerCase() === 'and' || next.text.toLowerCase() === 'or') {
-                        lookAhead++;
-                        lookCount++;
-                        continue;
-                    }
-                    if (!isSubjectComponent(next)) break; 
-                    lookAhead++;
-                    lookCount++;
-                }
-
-                if (isSubjectCandidate && isFirstSubjectCandidate && isFollowedByVerb) {
-                    isSubjectHead = true;
-                }
-
-                if (isSubjectHead) {
-                    // 主語のヘッドトークンにS/sマークを付ける
-                    t.role = currentScope.type === 'root' ? 'S' : 's';
-                    
-                    if (currentScope.type === 'root') {
-                        currentScope.mainS = t;
-                        currentScope.sCount++;
-                    } else {
-                        currentScope.clauseS = t;
-                        // 修正: ここがバグ！sCount をインクリメントすべき
-                        currentScope.sCount++;
-                    }
-                    
-                    // D. S/s グループの拡張 
-                    const subjectRole = t.role;
-                    t.role_group = subjectRole; 
-                    
-                    // 前方拡張
-                    let k = i - 1;
-                    while (k >= 0) {
-                        let prev = tokens[k];
-                        // 修正: 節の境界を超えないようにチェック
-                        if (prev.isSub || prev.isRel) break;
-                        
-                        if (isSubjectComponent(prev) && !prev.role) {
-                            prev.role_group = subjectRole;
-                            k--;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    // 後方拡張 (動詞が来るまで)
-                    let j = i + 1;
-                    while (j < tokens.length) {
-                        let next = tokens[j];
-                        if (next.isVerb || next.isCompoundVerb) break; 
-                        // 修正: 節の境界を超えないようにチェック
-                        if (next.isSub || next.isRel) break;
-                        
-                        if (isSubjectComponent(next) && !next.role) {
-                            next.role_group = subjectRole;
-                            j++;
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // E. Add token
-            currentScope.children.push({ token: t });
-        }
-        
-        return root;
+    // Clause opening
+    if (t.isSub){
+      openClause('sub', t, null);
+      continue;
+    }
+    if (t.isRel){
+      const antIdx = findAntecedentIndex(i);
+      const antTok = antIdx >= 0 ? tokens[antIdx] : null;
+      if (antTok) antTok.isAntecedent = true;
+      openClause('rel', t, antTok);
+      continue;
     }
 
+    // Clause closing heuristics:
+    // - relative clause: close at comma OR end OR when parent likely resumes with a verb after we already saw v
+    // - subordinate clause: close at comma when a new main subject starts after comma
+    const scope = current();
 
-    // --- Step 3: HTML Rendering ---
-    function renderStructure(scope) {
-        let html = "";
-        
-        if (scope.type === 'sub') {
-            html += `<div class="clause-box clause-sub">`;
-        } else if (scope.type === 'rel') {
-            html += `<div class="clause-box clause-rel">`;
-        }
-
-        scope.children.forEach(child => {
-            if (child.type) {
-                html += renderStructure(child);
-            } else {
-                let t = child.token;
-                let classes = "token";
-                let baseRole = t.role || t.role_group;
-                
-                // Apply Badge/Group styles based on role or expanded group
-                if (baseRole === 'S') {
-                    if (t.role === 'S') classes += " badge-S"; 
-                    else classes += " subject-group-S";        
-                } else if (baseRole === 's') {
-                    if (t.role === 's') classes += " badge-s"; 
-                    else classes += " subject-group-s";        
-                } else if (baseRole === 'V') classes += " badge-V";
-                else if (baseRole === 'v') classes += " badge-v";
-                else if (baseRole === 'connector') classes += " connector";
-                
-                if (t.isAntecedent) classes += " antecedent";
-                
-                html += `<span class="${classes}">${t.pre}${t.text}${t.post}</span>`;
-            }
-        });
-
-        if (scope.type !== 'root') {
-            html += `</div>`;
-        }
-
-        return html;
+    // relative close on comma if we already have v in this scope
+    if (scope.type === 'rel' && scope.V && isPunct(t) && t.text === ','){
+      // include comma inside the relative clause
+      scope.children.push({token:t});
+      closeClause();
+      continue;
     }
-    
-    // Main analysis function
-    function analyzeStructure() {
-        const resultContainer = document.getElementById('result-container');
-        try {
-            if (typeof nlp === 'undefined' || typeof nlp !== 'function') {
-                resultContainer.innerHTML = `<div class="error-message">
-                    解析ライブラリ(nlp)が見つかりません。<br>
-                    インターネット接続を確認し、ファイルを再読み込みしてください。
-                </div>`;
-                return;
-            }
 
-            const text = document.getElementById('inputText').value.trim();
-            if(!text) {
-                resultContainer.innerHTML = "解析する英文を入力してください。";
-                return;
-            }
-            
-            const doc = nlp(text);
-            let htmlOutput = "";
-
-            doc.sentences().forEach(sentence => {
-                let tokens = preprocessTokens(sentence);
-                let structure = parseStructure(tokens); 
-                htmlOutput += renderStructure(structure) + "<br><br>";
-            });
-
-            resultContainer.innerHTML = htmlOutput;
-            
-        } catch (e) {
-            console.error("解析処理中に予期せぬエラーが発生しました:", e);
-            resultContainer.innerHTML = `<div class="error-message">
-                解析中に予期せぬエラーが発生しました。入力文を確認してください。<br>
-                詳細: ${e.message}
-            </div>`;
-        }
+    // subordinate: close at comma, but only if after comma looks like a subject start for parent
+    if (scope.type === 'sub' && scope.V && isPunct(t) && t.text === ','){
+      scope.children.push({token:t});
+      closeClause();
+      continue;
     }
+
+    // end punctuation closes any open clause after adding it
+    if (isPunct(t) && (t.text === '.' || t.text === '!' || t.text === '?')){
+      current().children.push({token:t});
+      while (stack.length > 1) closeClause();
+      continue;
+    }
+
+    // default add token
+    current().children.push({token:t});
+  }
+
+  // Pass 2: assign S/V per scope by scanning children tokens (in-order)
+  function assignSV(scope){
+    // collect token indices in this scope (excluding nested clauses)
+    let flat = [];
+    for (const ch of scope.children){
+      if (ch.type) continue;
+      flat.push(ch.token);
+    }
+
+    // find subject head: first token that can start NP and followed by a verb within this scope before any boundary.
+    let subjIdx = -1;
+    for (let i=0;i<flat.length;i++){
+      const t = flat[i];
+      const canStart = t.isDeterminer || t.isPossessive || t.isAdjective || t.isNoun || t.isPronoun;
+      if (!canStart) continue;
+
+      // look ahead for verb
+      let foundVerb = false;
+      for (let j=i+1; j<flat.length; j++){
+        const x = flat[j];
+        if (looksLikeVerb(x)) { foundVerb = true; break; }
+        if (isPunct(x) && x.text === ',') { /* allow */ }
+        if (!isSubjectPiece(x)) break;
+      }
+      if (foundVerb) { subjIdx = t.index; break; }
+    }
+
+    // find verb: first verb after subject in this scope
+    let verbTok = null;
+    if (subjIdx >= 0){
+      let seenSubject = false;
+      for (const t of flat){
+        if (t.index === subjIdx) seenSubject = true;
+        if (!seenSubject) continue;
+        if (looksLikeVerb(t)) { verbTok = t; break; }
+      }
+    } else {
+      // if no subject found, still try first verb as V/v (imperatives etc.)
+      for (const t of flat){
+        if (looksLikeVerb(t)) { verbTok = t; break; }
+      }
+    }
+
+    const isRoot = scope.type === 'root';
+    if (subjIdx >= 0){
+      markSubjectGroup(scope, subjIdx, isRoot ? 'S' : 's');
+      scope.S = tokens[subjIdx];
+    }
+    if (verbTok){
+      verbTok.role = isRoot ? 'V' : 'v';
+      scope.V = verbTok;
+    }
+
+    // recurse into child clauses
+    for (const ch of scope.children){
+      if (ch.type) assignSV(ch);
+    }
+  }
+
+  assignSV(root);
+
+  // Antecedent marking: extend antecedent NP left/right lightly (determiners/adjectives/nouns)
+  // Mark the head + its immediate NP on the left (e.g., "the woman", "my dad")
+  function expandAntecedent(ant){
+    if (!ant) return;
+    const i = ant.index;
+    tokens[i].isAntecedent = true;
+    // left: determiners/possessives/adjectives
+    for (let k=i-1;k>=0;k--){
+      const t = tokens[k];
+      if (isClauseBoundary(t) || isPunct(t)) break;
+      if (t.isDeterminer || t.isPossessive || t.isAdjective) t.isAntecedent = true;
+      else break;
+    }
+    // right: allow compound noun like "team members"
+    for (let k=i+1;k<tokens.length;k++){
+      const t = tokens[k];
+      if (isClauseBoundary(t) || isPunct(t)) break;
+      if (t.isNoun) t.isAntecedent = true;
+      else break;
+    }
+  }
+
+  function walk(scope){
+    if (scope.type === 'rel' && scope.antecedent) expandAntecedent(scope.antecedent);
+    for (const ch of scope.children) if (ch.type) walk(ch);
+  }
+  walk(root);
+
+  return root;
+}
+
+/* ===========================
+   Rendering
+   =========================== */
+
+function esc(s){
+  return String(s)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#39;");
+}
+
+function roleClass(t){
+  if (t.role === 'S') return 'role-S';
+  if (t.role === 'V') return 'role-V';
+  if (t.role === 's') return 'role-s';
+  if (t.role === 'v') return 'role-v';
+  if (t.role === 'connector') return 'role-connector';
+  // group role for NP
+  if (t.role_group === 'S') return 'role-S';
+  if (t.role_group === 's') return 'role-s';
+  return 'role-none';
+}
+
+function roleLabel(t){
+  if (t.role === 'S') return 'S';
+  if (t.role === 'V') return 'V';
+  if (t.role === 's') return 's';
+  if (t.role === 'v') return 'v';
+  if (t.role === 'connector') return 'C';
+  return '&nbsp;'; // spacer
+}
+
+function render(scope){
+  let html = '';
+  if (scope.type === 'sub'){
+    html += `<div class="clause-box clause-sub"><div class="clause-label">Subordinate Clause</div>`;
+  } else if (scope.type === 'rel'){
+    html += `<div class="clause-box clause-rel"><div class="clause-label">Relative Clause</div>`;
+  }
+
+  for (const ch of scope.children){
+    if (ch.type){
+      html += render(ch);
+      continue;
+    }
+    const t = ch.token;
+    const cls = roleClass(t) + (t.isAntecedent ? ' antecedent' : '');
+    html += `<span class="token ${cls}">`
+          + `<span class="label">${roleLabel(t)}</span>`
+          + `<span class="surf">${esc(t.pre)}${esc(t.text)}${esc(t.post)}</span>`
+          + `</span>`;
+  }
+
+  if (scope.type !== 'root') html += `</div>`;
+  return html;
+}
+
+/* ===========================
+   Main UI
+   =========================== */
+
+function analyzeText(){
+  const out = document.getElementById('result');
+
+  if (typeof window.nlp !== 'function'){
+    out.innerHTML = `<div class="error">
+      Compromise NLP library (nlp) is not available.<br/>
+      If you are using GitHub Pages, add a local copy at <code class="kbd">/vendor/compromise.min.js</code>.<br/>
+      Then reload the page.
+    </div>`;
+    return;
+  }
+
+  const text = document.getElementById('inputText').value.trim();
+  if (!text){
+    out.innerHTML = `<span style="color:var(--muted)">Please enter an English sentence.</span>`;
+    return;
+  }
+
+  try{
+    const doc = nlp(text);
+    let html = '';
+
+    const sentences = doc.sentences();
+    const count = sentences.length || 1;
+
+    // compromise sentence iteration
+    const sentArr = (typeof sentences.forEach === 'function')
+      ? (()=>{ const a=[]; sentences.forEach(s=>a.push(s)); return a; })()
+      : [doc];
+
+    for (const sdoc of sentArr){
+      const st = (typeof sdoc.text === 'function') ? sdoc.text() : text;
+      const rawTerms = normalizeTerms(st, sdoc);
+      const tokens = preprocess(rawTerms);
+      const tree = parse(tokens);
+      html += `<div style="margin: 6px 0 14px;">${render(tree)}</div>`;
+    }
+
+    out.innerHTML = html;
+
+  } catch (e){
+    console.error(e);
+    out.innerHTML = `<div class="error">
+      Unexpected error during parsing.<br/>
+      Details: ${esc(e.message || String(e))}
+    </div>`;
+  }
+}
+
+document.getElementById('analyzeBtn').addEventListener('click', analyzeText);
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('inputText').value = '';
+  document.getElementById('result').innerHTML = '';
+});
+document.getElementById('sampleBtn').addEventListener('click', () => {
+  document.getElementById('inputText').value =
+`When I arrived, the woman who lives next door has been making dinner for my dad, mom and brother.
+The man with whom I spoke had gone back home, but the book that I bought yesterday was expensive.`;
+});
 </script>
 </body>
 </html>
