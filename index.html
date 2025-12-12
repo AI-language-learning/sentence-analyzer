@@ -420,6 +420,30 @@ function preprocess(rawTerms) {
 
   for (let i=0;i<tokens.length;i++){
     const t = tokens[i];
+
+    // --- RELATIVE CLAUSE CLOSING (critical fix) ---
+    // If we are inside a relative clause that already has its own verb (v),
+    // and we now see a new verb-like token that is likely the MAIN CLAUSE verb,
+    // close the relative clause BEFORE consuming this token.
+    // Allow coordinated verbs inside the relative clause (e.g., "who came and saw").
+    const scopeNow = cur();
+    if (scopeNow && scopeNow.type === 'rel' && scopeNow.V && looksLikeVerb(t)) {
+      // find previous non-punct token within the stream
+      let prevTok = null;
+      for (let k=i-1; k>=0; k--){
+        const pk = tokens[k];
+        if (isPunctTok(pk)) continue;
+        prevTok = pk;
+        break;
+      }
+      const prevWord = prevTok ? prevTok.normal.replace(/[^a-z']/g,'') : '';
+      const isCoordPrev = (prevWord === 'and' || prevWord === 'or' || prevWord === 'but' || prevTok?.text === ',');
+      // If not a coordinated verb inside the relative clause, we assume the relative clause ended.
+      if (!isCoordPrev) {
+        closeClause();
+      }
+    }
+
     const w = t.normal.replace(/[^a-z']/g,'');
     if (SUBORDINATORS.has(w)) t.isSub = true;
 
