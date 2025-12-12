@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>English Sentence Structure Analyzer</title>
+    <meta charset="UTF-8">
+    <script src="https://unpkg.com/compromise@14.1.0/builds/compromise.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; margin-bottom: 20px; }
+        textarea { width: 100%; height: 80px; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
+        .buttons-container { text-align: center; margin-bottom: 30px; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+        #analyzeButton { background-color: #007bff; color: white; }
+        #analyzeButton:hover { background-color: #0056b3; }
+        .token { display: inline-block; position: relative; padding: 0 2px; margin: 0 1px; line-height: 1.5; }
+        
+        /* Clause Boxes */
+        .clause-box { 
+            border: 2px solid; 
+            padding: 5px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            display: inline-block; 
+            position: relative; 
+            line-height: 2.0;
+        }
+        .clause-sub { border-color: orange; }
+        .clause-sub::before { content: "Subordinate Clause"; position: absolute; top: -10px; left: 5px; background: orange; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .clause-rel { border-color: purple; }
+        .clause-rel::before { content: "Relative Clause"; position: absolute; top: -10px; left: 5px; background: purple; color: white; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+
+        /* Role Highlighting (Badges/Groups) */
+        .badge-S::after, .badge-s::after, .badge-V::after, .badge-v::after {
+            position: absolute;
+            top: -1.2em;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-weight: bold;
+            padding: 1px 3px;
+            border-radius: 3px;
+            color: white;
+        }
+
+        /* Main Clause Roles */
+        .subject-group-S, .badge-S { color: blue; }
+        .badge-S::after { content: "S"; background: blue; }
+        .badge-V::after { content: "V"; background: red; }
+        .badge-V { color: red; }
+
+        /* Subordinate Clause Roles */
+        .subject-group-s, .badge-s { color: #008080; } /* Teal */
+        .badge-s::after { content: "s"; background: #008080; }
+        .badge-v::after { content: "v"; background: #cc00cc; } /* Magenta */
+        .badge-v { color: #cc00cc; }
+        
+        /* Connector */
+        .connector { color: gray; font-weight: bold; }
+
+        /* Legend */
+        .legend { margin-top: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+        .legend-item { display: inline-block; margin-right: 20px; font-size: 14px; }
+        .color-box { width: 15px; height: 15px; display: inline-block; margin-right: 5px; border: 1px solid #ccc; vertical-align: middle; }
+        .legend .blue { background-color: blue; }
+        .legend .red { background-color: red; }
+        .legend .teal { background-color: #008080; }
+        .legend .magenta { background-color: #cc00cc; }
+        .legend .yellow { background-color: orange; }
+        .legend .purple { background-color: purple; }
+        .legend .gray { background-color: #aaa; }
+
+        .error-message { color: red; font-weight: bold; margin-top: 20px; padding: 10px; border: 1px solid red; border-radius: 5px; background-color: #ffe0e0; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>English Sentence Structure Analyzer</h1>
+    <textarea id="inputText" placeholder="例: The woman who lives next door is a doctor."></textarea>
+    <div class="buttons-container">
+        <button id="analyzeButton" onclick="analyzeStructure()">Analyze Structure</button>
+    </div>
+    
+    <div id="result-container">
+        </div>
+
+    <div class="legend">
+        <div class="legend-item"><span class="color-box blue"></span> Main Subject (S)</div>
+        <div class="legend-item"><span class="color-box red"></span> Main Verb (V)</div>
+        <div class="legend-item"><span class="color-box teal"></span> Subordinate Subject (s)</div>
+        <div class="legend-item"><span class="color-box magenta"></span> Subordinate Verb (v)</div>
+        <div class="legend-item"><span class="color-box yellow"></span> Subordinate Clause (When/If...)</div>
+        <div class="legend-item"><span class="color-box purple"></span> Relative Clause (who/that...)</div>
+        <div class="legend-item"><span class="color-box gray"></span> Connector/Other</div>
+    </div>
+</div>
+
+<script>
+    // --- Token Class Definition ---
+    class Token {
+        constructor(text, tags, pre, post, index) {
+            this.text = text;
+            this.tags = tags;
+            this.pre = pre || '';
+            this.post = post || '';
+            this.index = index; 
+
+            // Simplified Tag Checks
+            this.isNoun = tags.has('Noun') || tags.has('Plural');
+            this.isVerb = tags.has('Verb') || tags.has('PastTense') || tags.has('Gerund');
+            this.isCompoundVerb = tags.has('CompoundVerb');
+            // 従属接続詞
+            this.isSub = tags.has('Conjunction') && (text.toLowerCase() === 'when' || text.toLowerCase() === 'if' || text.toLowerCase() === 'because' || text.toLowerCase() === 'although' || text.toLowerCase() === 'while');
+            // 関係代名詞/関係副詞
+            this.isRel = tags.has('RelativePronoun') || (tags.has('Conjunction') && text.toLowerCase() === 'that');
+            this.isRelSubject = false; 
+            
+            // Parsing properties
+            this.role = null; 
+            this.role_group = null; 
+            this.isAntecedent = false;
+        }
+    }
+
+    // Helper function to check if a token can be part of a subject group
+    function isSubjectComponent(token) {
+        const lower = token.text.toLowerCase().replace(/[^a-z,]/g, '');
+        // Determiner, Possessive, Noun, Pronoun, comma, and, or
+        return token.tags.has('Determiner') || token.tags.has('Possessive') || token.isNoun || token.tags.has('Pronoun') || lower === 'and' || lower === 'or' || lower === ',';
+    }
+
+    // --- Step 1: Preprocessing (Combine Compound Verbs & Phrasal Verbs, and Adverb Phrases) ---
+    function preprocessTokens(sentence) {
+        let rawTerms = sentence.termList();
+        let combinedData = [];
+        const termLength = rawTerms.length;
+
+        // --- 1. 動詞の結合ロジック ---
+        for (let i = 0; i < termLength; i++) {
+             let size = 1;
+             
+             // 1-1. 完了形/進行形/助動詞の結合
+             if (rawTerms[i].tags.has('Auxiliary') || rawTerms[i].tags.has('Modal')) {
+                 
+                 // 3語結合 (has been working)
+                 if (i + 2 < termLength && rawTerms[i+1].text.toLowerCase() === 'been' && rawTerms[i+2].tags.has('Gerund')) {
+                     size = 3;
+                 }
+                 // 2語結合 (had left, will go) - 3語結合の条件を満たさない場合
+                 else if (size === 1 && i + 1 < termLength && (rawTerms[i+1].tags.has('Verb') || rawTerms[i+1].tags.has('Participle') || rawTerms[i+1].tags.has('Gerund'))) { 
+                     size = 2;
+                 }
+             }
+
+             // 1-2. 句動詞の結合 (came back, look up)
+             if (rawTerms[i].tags.has('Verb') && size === 1 && i + 1 < termLength && (rawTerms[i+1].tags.has('Particle') || rawTerms[i+1].tags.has('Adverb'))) {
+                 size = 2;
+             }
+
+             // 結合サイズが1より大きく、かつ範囲内であるかを確認
+             if (size > 1 && (i + size - 1 < termLength)) {
+                 const isOverlapped = combinedData.some(d => d.start >= i && d.start < i + size); 
+                 if (!isOverlapped) {
+                     combinedData.push({ start: i, size: size, type: 'Verb' });
+                     i += size - 1; 
+                 }
+             }
+        }
+
+        // --- 2. 副詞句の結合 (next door) ---
+        // nlpが未定義の場合はスキップ（analyzeStructureでチェックされる）
+        if (typeof nlp === 'function') {
+            let doc = nlp(sentence.text());
+            let nextDoor = doc.match('next door').out('offsets');
+            nextDoor.forEach(nd => {
+                const isOverlapped = combinedData.some(d => d.start >= nd.offset.index && d.start < nd.offset.index + nd.size);
+                if (!isOverlapped) {
+                    combinedData.push({ start: nd.offset.index, size: nd.size, type: 'Adverb' });
+                }
+            });
+        }
+
+        // --- 3. 最終トークンリストの作成 ---
+        let tokens = [];
+        let skipUntil = -1;
+
+        for (let i = 0; i < termLength; i++) {
+            if (i <= skipUntil) continue;
+            
+            let combinedItem = combinedData.find(p => p.start === i);
+            
+            if (combinedItem) {
+                let combinedText = "";
+                let combinedPre = rawTerms[i].pre;
+                
+                // 終端要素の post を安全に取得
+                const endIndex = i + combinedItem.size - 1;
+                let combinedPost = (endIndex < termLength) ? rawTerms[endIndex].post : ""; 
+                
+                let tags = combinedItem.type === 'Verb' ? new Set(['Verb', 'CompoundVerb']) : new Set(['Adverb', 'Compound']);
+
+                for (let j = 0; j < combinedItem.size; j++) {
+                    if (i+j < termLength) {
+                        combinedText += (j > 0 ? " " : "") + rawTerms[i+j].text;
+                    }
+                }
+                
+                let t = new Token(combinedText, tags, combinedPre, combinedPost, i);
+                tokens.push(t);
+                skipUntil = endIndex;
+            } else {
+                // 通常のトークン
+                tokens.push(new Token(rawTerms[i].text, new Set(rawTerms[i].tags), rawTerms[i].pre, rawTerms[i].post, i));
+            }
+        }
+        
+        // 関係代名詞が主語を兼ねる場合のマーク
+        for (let i = 0; i < tokens.length - 1; i++) {
+            if (tokens[i].isRel && (tokens[i+1].isVerb || tokens[i+1].isCompoundVerb)) {
+                tokens[i].isRelSubject = true;
+            }
+        }
+
+        return tokens;
+    }
+
+    // --- Step 2: Structure Parsing ---
+    function parseStructure(tokens) {
+        let root = { type: 'root', children: [], mainS: null, mainV: null, sCount: 0, vCount: 0 };
+        let stack = [root]; 
+
+        for (let i = 0; i < tokens.length; i++) {
+            let t = tokens[i];
+            let currentScope = stack[stack.length - 1];
+
+            // A. Clause Opening
+            if (t.isSub || t.isRel) {
+                let type = t.isSub ? 'sub' : 'rel';
+                let newClause = { 
+                    type: type, children: [], clauseS: null, clauseV: null, sCount: 0, vCount: 0 
+                };
+                
+                // Antecedent Marking for RELATIVE CLAUSES
+                if (type === 'rel' && i > 0) {
+                    let prevToken = tokens[i-1];
+                    if (prevToken.isNoun || prevToken.role_group === 'S' || prevToken.role_group === 's') {
+                        newClause.antecedent = prevToken;
+                        prevToken.isAntecedent = true;
+                    }
+                }
+
+                currentScope.children.push(newClause);
+                stack.push(newClause);
+                currentScope = newClause; 
+
+                // Process the connector token itself
+                if (t.isRelSubject) {
+                    t.role = 's';
+                    currentScope.clauseS = t;
+                    currentScope.sCount++;
+                } else {
+                    t.role = 'connector';
+                }
+                currentScope.children.push({ token: t });
+                continue; 
+            }
+            
+            // B. Clause Closing Logic (After opening logic)
+            // 関係節の終了判定: Noun [who... v] V
+            if (currentScope.type === 'rel' && currentScope.clauseV) {
+                let isPotentialMainVerb = t.isVerb || t.isCompoundVerb;
+                // 修正: stack.length > 1 に変更（ネスト構造に対応）
+                if (isPotentialMainVerb && stack.length > 1 && currentScope.antecedent) {
+                     stack.pop(); 
+                     currentScope = stack[stack.length - 1]; 
+                }
+            }
+            // 文頭の従属節の終了判定: (When ... v), S V
+            else if (currentScope.type === 'sub' && currentScope.clauseV) {
+                let isPotentialMainSubjectStart = t.tags.has('Determiner') || t.tags.has('Possessive') || t.isNoun || t.tags.has('Pronoun');
+                // 修正: stack.length > 1 に変更
+                if (isPotentialMainSubjectStart && stack.length > 1) { 
+                    stack.pop(); 
+                    currentScope = stack[stack.length - 1]; 
+                }
+            } 
+
+
+            // C. Role Assignment (S/V/s/v)
+            
+            let isVerb = t.isVerb || t.isCompoundVerb;
+            
+            if (isVerb) {
+                // スコープ内で未割り当ての最初の動詞を V/v とする
+                if (currentScope.type === 'root') {
+                    if (!currentScope.mainV) {
+                        t.role = 'V';
+                        currentScope.mainV = t;
+                        currentScope.vCount++;
+                    }
+                } else { 
+                    if (!currentScope.clauseV) {
+                        t.role = 'v';
+                        currentScope.clauseV = t;
+                        currentScope.vCount++;
+                    }
+                }
+            } else if (t.isNoun || t.tags.has('Determiner') || t.tags.has('Possessive') || t.tags.has('Pronoun')) {
+                
+                let isSubjectCandidate = t.tags.has('Determiner') || t.tags.has('Possessive') || t.isNoun || t.tags.has('Pronoun');
+                let isSubjectHead = false;
+
+                // スコープ内の最初の Determiner/Noun/Pronoun かつ、動詞が後続するかチェック
+                let isFirstSubjectCandidate = (currentScope.type === 'root' && !currentScope.mainS && !currentScope.mainV) || 
+                                              (currentScope.type !== 'root' && !currentScope.clauseS && !currentScope.clauseV);
+                
+                let isFollowedByVerb = false;
+                let lookAhead = i + 1;
+                let maxLookAhead = 20; // 修正: 無限ループ防止
+                let lookCount = 0;
+                
+                // 修正: 現在のスコープ内でのみ検索するように改善
+                while (lookAhead < tokens.length && lookCount < maxLookAhead) {
+                    let next = tokens[lookAhead];
+                    
+                    // 節の境界に達したら停止
+                    if (next.isSub || next.isRel) break;
+                    
+                    if (next.isVerb || next.isCompoundVerb) {
+                        isFollowedByVerb = true;
+                        break;
+                    }
+                    if (next.text === ',' || next.text.toLowerCase() === 'and' || next.text.toLowerCase() === 'or') {
+                        lookAhead++;
+                        lookCount++;
+                        continue;
+                    }
+                    if (!isSubjectComponent(next)) break; 
+                    lookAhead++;
+                    lookCount++;
+                }
+
+                if (isSubjectCandidate && isFirstSubjectCandidate && isFollowedByVerb) {
+                    isSubjectHead = true;
+                }
+
+                if (isSubjectHead) {
+                    // 主語のヘッドトークンにS/sマークを付ける
+                    t.role = currentScope.type === 'root' ? 'S' : 's';
+                    
+                    if (currentScope.type === 'root') {
+                        currentScope.mainS = t;
+                        currentScope.sCount++;
+                    } else {
+                        currentScope.clauseS = t;
+                        // 修正: ここがバグ！sCount をインクリメントすべき
+                        currentScope.sCount++;
+                    }
+                    
+                    // D. S/s グループの拡張 
+                    const subjectRole = t.role;
+                    t.role_group = subjectRole; 
+                    
+                    // 前方拡張
+                    let k = i - 1;
+                    while (k >= 0) {
+                        let prev = tokens[k];
+                        // 修正: 節の境界を超えないようにチェック
+                        if (prev.isSub || prev.isRel) break;
+                        
+                        if (isSubjectComponent(prev) && !prev.role) {
+                            prev.role_group = subjectRole;
+                            k--;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    // 後方拡張 (動詞が来るまで)
+                    let j = i + 1;
+                    while (j < tokens.length) {
+                        let next = tokens[j];
+                        if (next.isVerb || next.isCompoundVerb) break; 
+                        // 修正: 節の境界を超えないようにチェック
+                        if (next.isSub || next.isRel) break;
+                        
+                        if (isSubjectComponent(next) && !next.role) {
+                            next.role_group = subjectRole;
+                            j++;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // E. Add token
+            currentScope.children.push({ token: t });
+        }
+        
+        return root;
+    }
+
+
+    // --- Step 3: HTML Rendering ---
+    function renderStructure(scope) {
+        let html = "";
+        
+        if (scope.type === 'sub') {
+            html += `<div class="clause-box clause-sub">`;
+        } else if (scope.type === 'rel') {
+            html += `<div class="clause-box clause-rel">`;
+        }
+
+        scope.children.forEach(child => {
+            if (child.type) {
+                html += renderStructure(child);
+            } else {
+                let t = child.token;
+                let classes = "token";
+                let baseRole = t.role || t.role_group;
+                
+                // Apply Badge/Group styles based on role or expanded group
+                if (baseRole === 'S') {
+                    if (t.role === 'S') classes += " badge-S"; 
+                    else classes += " subject-group-S";        
+                } else if (baseRole === 's') {
+                    if (t.role === 's') classes += " badge-s"; 
+                    else classes += " subject-group-s";        
+                } else if (baseRole === 'V') classes += " badge-V";
+                else if (baseRole === 'v') classes += " badge-v";
+                else if (baseRole === 'connector') classes += " connector";
+                
+                if (t.isAntecedent) classes += " antecedent";
+                
+                html += `<span class="${classes}">${t.pre}${t.text}${t.post}</span>`;
+            }
+        });
+
+        if (scope.type !== 'root') {
+            html += `</div>`;
+        }
+
+        return html;
+    }
+    
+    // Main analysis function
+    function analyzeStructure() {
+        const resultContainer = document.getElementById('result-container');
+        try {
+            if (typeof nlp === 'undefined' || typeof nlp !== 'function') {
+                resultContainer.innerHTML = `<div class="error-message">
+                    解析ライブラリ(nlp)が見つかりません。<br>
+                    インターネット接続を確認し、ファイルを再読み込みしてください。
+                </div>`;
+                return;
+            }
+
+            const text = document.getElementById('inputText').value.trim();
+            if(!text) {
+                resultContainer.innerHTML = "解析する英文を入力してください。";
+                return;
+            }
+            
+            const doc = nlp(text);
+            let htmlOutput = "";
+
+            doc.sentences().forEach(sentence => {
+                let tokens = preprocessTokens(sentence);
+                let structure = parseStructure(tokens); 
+                htmlOutput += renderStructure(structure) + "<br><br>";
+            });
+
+            resultContainer.innerHTML = htmlOutput;
+            
+        } catch (e) {
+            console.error("解析処理中に予期せぬエラーが発生しました:", e);
+            resultContainer.innerHTML = `<div class="error-message">
+                解析中に予期せぬエラーが発生しました。入力文を確認してください。<br>
+                詳細: ${e.message}
+            </div>`;
+        }
+    }
+</script>
+</body>
+</html>
