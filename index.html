@@ -1,259 +1,419 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<title>English Sentence Structure Analyzer (MVP-A)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Clause Boundary Highlighter (No S/V)</title>
 
-<!-- CDN with local fallback -->
-<script src="https://cdn.jsdelivr.net/npm/compromise@14.10.0/builds/compromise.min.js"></script>
-<script>
-if (typeof nlp === 'undefined') {
-  document.write('<script src="vendor/compromise.min.js"><\/script>');
-}
-</script>
+  <!-- Compromise NLP: CDN with local fallback (recommended for GitHub Pages reliability)
+       Put a copy at: ./vendor/compromise.min.js -->
+  <script src="https://cdn.jsdelivr.net/npm/compromise@14.14.4/builds/compromise.min.js"></script>
+  <script>
+    if (typeof window.nlp === 'undefined') {
+      document.write('<script src="./vendor/compromise.min.js"><\/script>');
+    }
+  </script>
 
-<style>
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #f4f6fb;
-  margin: 0;
-  padding: 24px;
-}
-.container {
-  max-width: 960px;
-  margin: auto;
-  background: white;
-  padding: 28px;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-}
-h1 {
-  margin-top: 0;
-  text-align: center;
-}
-textarea {
-  width: 100%;
-  height: 110px;
-  font-size: 16px;
-  padding: 12px;
-  box-sizing: border-box;
-}
-button {
-  margin: 8px 6px;
-  padding: 8px 18px;
-  font-size: 15px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-}
-button.primary { background:#2563eb; color:white; }
-button.secondary { background:#e5e7eb; }
+  <style>
+    :root{
+      --bg:#f4f6fb;
+      --card:#fff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --shadow:0 8px 24px rgba(0,0,0,.08);
 
-.notice {
-  font-size: 14px;
-  color: #555;
-  margin: 10px 0;
-}
+      --sub:#f59e0b; /* orange */
+      --rel:#7c3aed; /* purple */
+      --punc:#9ca3af; /* gray */
+      --start:#0ea5e9; /* cyan */
+    }
+    body{
+      margin:0;
+      padding:24px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .container{
+      max-width: 980px;
+      margin: 0 auto;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 20px 20px 18px;
+    }
+    h1{
+      margin: 6px 0 6px;
+      text-align:center;
+      font-size: 20px;
+    }
+    .sub{
+      text-align:center;
+      color:var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      margin: 0 0 14px;
+    }
+    textarea{
+      width:100%;
+      min-height: 110px;
+      resize: vertical;
+      padding: 12px;
+      box-sizing: border-box;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      font-size: 16px;
+      outline:none;
+    }
+    textarea:focus{
+      border-color:#93c5fd;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+    }
+    .row{
+      display:flex;
+      flex-wrap: wrap;
+      gap:10px;
+      justify-content:center;
+      align-items:center;
+      margin: 12px 0 14px;
+    }
+    button{
+      border: 1px solid #d1d5db;
+      background:#f9fafb;
+      padding: 9px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      cursor:pointer;
+    }
+    button.primary{
+      background:#2563eb;
+      border-color:#2563eb;
+      color:white;
+    }
+    button:active{ transform: translateY(1px); }
 
-.output {
-  margin-top: 20px;
-  line-height: 2.0;
-}
+    .panel{
+      border:1px solid var(--border);
+      border-radius: 12px;
+      background:#fcfcfd;
+      padding: 14px;
+    }
 
-.token {
-  display: inline-block;
-  margin: 0 2px;
-  position: relative;
-}
+    .sentence{
+      margin: 10px 0 14px;
+      line-height: 2.2;
+      overflow-x:auto;
+      padding-bottom: 2px;
+    }
 
-.S { color: #1d4ed8; font-weight: 600; }
-.V { color: #b91c1c; font-weight: 600; }
-.s { color: #047857; font-weight: 600; }
-.v { color: #7c3aed; font-weight: 600; }
+    /* Token */
+    .tok{
+      display:inline-block;
+      margin: 0 1px;
+      padding: 0 2px;
+      border-radius: 8px;
+      white-space: pre;
+    }
+    .punc{ color: var(--punc); font-weight: 700; }
 
-.badge {
-  position: absolute;
-  top: -1.2em;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  color: white;
-}
-.S .badge { background:#1d4ed8; }
-.V .badge { background:#b91c1c; }
-.s .badge { background:#047857; }
-.v .badge { background:#7c3aed; }
+    /* Clause spans */
+    .span{
+      display:inline-block;
+      border: 2px solid;
+      border-radius: 14px;
+      padding: 6px 6px 7px;
+      margin: 4px 0;
+      position: relative;
+    }
+    .span > .tag{
+      position:absolute;
+      top:-11px;
+      left:10px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing:.02em;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color:white;
+      user-select:none;
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+    }
+    .sub-span{ border-color: var(--sub); }
+    .sub-span > .tag{ background: var(--sub); }
 
-.clause {
-  border: 2px solid;
-  padding: 8px 6px 10px 6px;
-  border-radius: 10px;
-  margin: 12px 0;
-}
-.main { border-color:#9ca3af; }
-.sub { border-color:#f59e0b; }
-.rel { border-color:#8b5cf6; }
+    .rel-span{ border-color: var(--rel); }
+    .rel-span > .tag{ background: var(--rel); }
 
-.label {
-  font-size: 11px;
-  font-weight: 700;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 6px;
-  display: inline-block;
-  margin-bottom: 6px;
-}
-.main .label { background:#6b7280; }
-.sub .label { background:#f59e0b; }
-.rel .label { background:#8b5cf6; }
+    /* Start markers (informative) */
+    .start-marker{
+      display:inline-block;
+      font-size: 10px;
+      font-weight: 900;
+      color: white;
+      background: var(--start);
+      padding: 1px 6px;
+      border-radius: 999px;
+      margin: 0 4px 0 2px;
+      transform: translateY(-2px);
+      user-select:none;
+    }
 
-footer {
-  margin-top: 28px;
-  font-size: 13px;
-  color:#666;
-}
-code { background:#eee; padding:2px 4px; border-radius:4px; }
-</style>
+    .legend{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      justify-content:center;
+      align-items:center;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .swatch{
+      width: 14px; height: 14px;
+      border-radius: 4px;
+      border:1px solid rgba(0,0,0,.12);
+      display:inline-block;
+      margin-right:6px;
+      transform: translateY(2px);
+    }
+    .sw-sub{ background: var(--sub); }
+    .sw-rel{ background: var(--rel); }
+    .sw-p{ background: var(--punc); }
+    .sw-s{ background: var(--start); }
+
+    .opts{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      justify-content:center;
+      align-items:center;
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    label{ cursor:pointer; }
+    .error{
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(220,38,38,.5);
+      background: rgba(220,38,38,.06);
+      color: #991b1b;
+      font-weight: 700;
+      line-height: 1.55;
+    }
+    code.kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background:#f3f4f6;
+      border:1px solid #e5e7eb;
+      padding:2px 6px;
+      border-radius: 8px;
+    }
+  </style>
 </head>
 
 <body>
-<div class="container">
+  <div class="container">
+    <h1>Clause Boundary Highlighter</h1>
+    <div class="sub">
+      <b>S/V判定はしません</b>。代わりに、<b>節の切れ目（候補）</b>を安定して可視化します。<br>
+      ルールは「目印語（when / who / that 等）＋句読点（, . ;）」中心なので、GitHub Pagesでも壊れにくい設計です。
+    </div>
 
-<h1>English Sentence Structure Analyzer</h1>
+    <textarea id="input" placeholder="例: When I arrived, the woman who lives next door smiled."></textarea>
 
-<p class="notice">
-<strong>Design policy (MVP-A):</strong><br>
-• Educational visualization tool (not a full parser)<br>
-• Shows <em>clauses</em> and exactly <em>one Subject (S) and one finite Verb (V)</em> per clause<br>
-• Finite verbs only (be / have / modals / present & past forms)<br>
-• Robust on GitHub Pages (Safari / campus Wi‑Fi)
-</p>
+    <div class="row">
+      <button class="primary" id="runBtn">Highlight</button>
+      <button id="sampleBtn">Sample</button>
+      <button id="clearBtn">Clear</button>
+    </div>
 
-<textarea id="input">
-When I arrived, the woman who lives next door has been making dinner for my dad, mom and brother.
-The man with whom I spoke had gone back home, but the book that I bought yesterday was expensive.
-I go home.
-</textarea>
+    <div class="opts">
+      <label><input type="checkbox" id="closeAtPunct" checked> 節は「カンマ/ピリオド/セミコロン」で閉じる（安定）</label>
+      <label><input type="checkbox" id="showStartMarkers" checked> 開始マーカー（SUB/REL）を表示</label>
+    </div>
 
-<div style="text-align:center">
-  <button class="primary" onclick="analyze()">Analyze</button>
-  <button class="secondary" onclick="clearOutput()">Clear</button>
-</div>
+    <div id="out" class="panel" style="margin-top:12px;"></div>
 
-<div id="output" class="output"></div>
+    <div class="legend" aria-hidden="true">
+      <div><span class="swatch sw-sub"></span>Subordinate clause span</div>
+      <div><span class="swatch sw-rel"></span>Relative clause span</div>
+      <div><span class="swatch sw-s"></span>Clause-start marker</div>
+      <div><span class="swatch sw-p"></span>Punctuation</div>
+    </div>
 
-<footer>
-Tip: If CDN fails, place <code>compromise.min.js</code> at <code>/vendor/compromise.min.js</code>.
-</footer>
-
-</div>
+    <div style="margin-top:10px;color:var(--muted);font-size:12px;line-height:1.6;">
+      CDN不調対策：<code class="kbd">vendor/compromise.min.js</code> をリポジトリに置くとローカル読み込みできます。
+    </div>
+  </div>
 
 <script>
-/*
-==================================================
- CORE LOGIC — MVP A (FIXED SPEC)
-==================================================
-*/
+const SUB_WORDS = new Set(["when","if","because","although","while","since","after","before","until","unless","once","whereas"]);
+const REL_WORDS = new Set(["who","whom","whose","which","that","where","when"]);
+const PREPS = new Set(["in","on","at","for","to","from","with","without","by","about","as","of","into","onto","over","under","after","before","between","among","through","during","within","across","around","behind","toward","towards"]);
+const PUNCT = new Set([",",".",";","!","?"]);
 
-const SUBORDINATORS = ["when","if","because","although","while"];
-const RELATIVES = ["who","whom","which","that","whose","where"];
+function safeNLP(){ return (typeof window.nlp === "function"); }
 
-const FINITE_VERBS = [
-  "am","is","are","was","were",
-  "have","has","had",
-  "will","can","may","must","should","did"
-];
-
-function isFiniteVerb(word) {
-  const w = word.toLowerCase();
-  if (FINITE_VERBS.includes(w)) return true;
-  if (w.endsWith("ed")) return true;      // simple past
-  if (w.endsWith("s")) return true;       // 3sg present
-  return false;
+function splitSentences(text){
+  if (safeNLP()){
+    try{
+      const arr = nlp(text).sentences().out("array");
+      if (Array.isArray(arr) && arr.length) return arr;
+    }catch(_){}
+  }
+  return text.split(/(?<=[.!?])\s+/).filter(s=>s.trim().length);
 }
 
-function tokenize(text) {
-  return text.split(/(\s+|[.,])/).filter(t => t.trim() !== "");
+function tokenize(sentence){
+  const raw = sentence.match(/[\w’']+|[.,;!?]/g) || [];
+  const tokens = [];
+  for (let i=0;i<raw.length;i++){
+    const t = raw[i];
+    const pre = (i===0) ? "" : (PUNCT.has(t) ? "" : " ");
+    tokens.push({text:t, lower:t.toLowerCase(), pre});
+  }
+  return tokens;
 }
 
-function analyzeSentence(sentence) {
-  const tokens = tokenize(sentence);
-  let clauses = [];
-  let i = 0;
+function looksAntecedent(tok){
+  if (!tok) return false;
+  if (PUNCT.has(tok.text)) return false;
+  const w = tok.lower;
+  if (SUB_WORDS.has(w) || REL_WORDS.has(w) || PREPS.has(w)) return false;
+  return /^[a-zA-Z]/.test(tok.text) || /’|'/g.test(tok.text);
+}
 
-  function readClause(type) {
-    let S = null, V = null;
-    let content = [];
-    while (i < tokens.length) {
-      const t = tokens[i];
-      const lw = t.toLowerCase();
+function detectSpans(tokens, closeAtPunct=true){
+  const spans = [];
+  let i=0;
+  while (i < tokens.length){
+    const t = tokens[i];
+    const w = t.lower;
 
-      if (type !== "rel" && RELATIVES.includes(lw)) break;
-      if (type === "main" && SUBORDINATORS.includes(lw)) break;
-
-      if (!S && /^[A-Za-z]/.test(t)) S = t;
-      else if (!V && isFiniteVerb(t)) V = t;
-
-      content.push(t);
-      i++;
-      if (V) break; // MVP rule: stop after finite V
+    // subordinate clause start
+    if (SUB_WORDS.has(w)){
+      const start = i;
+      let end = tokens.length - 1;
+      if (closeAtPunct){
+        for (let j=i+1;j<tokens.length;j++){
+          if (PUNCT.has(tokens[j].text)){ end = j; break; }
+        }
+      }
+      spans.push({type:"sub", start, end});
+      i = end + 1;
+      continue;
     }
-    clauses.push({ type, content, S, V });
+
+    // relative clause start
+    const prev = tokens[i-1];
+    const prev2 = tokens[i-2];
+    const isPrepRel = PREPS.has(prev?.lower || "") && (w==="whom" || w==="which");
+    const hasAntecedent = looksAntecedent(prev) || (prev?.text === "," && looksAntecedent(prev2));
+
+    if (REL_WORDS.has(w) && (isPrepRel || hasAntecedent)){
+      const start = isPrepRel ? (i-1) : i;
+      let end = tokens.length - 1;
+      if (closeAtPunct){
+        for (let j=i+1;j<tokens.length;j++){
+          if (PUNCT.has(tokens[j].text)){ end = j; break; }
+        }
+      }
+      spans.push({type:"rel", start, end});
+      i = end + 1;
+      continue;
+    }
+
+    i++;
   }
 
-  while (i < tokens.length) {
-    const w = tokens[i].toLowerCase();
-    if (SUBORDINATORS.includes(w)) {
-      i++;
-      readClause("sub");
-    } else if (RELATIVES.includes(w)) {
-      i++;
-      readClause("rel");
-    } else {
-      readClause("main");
-    }
+  spans.sort((a,b)=>a.start-b.start || a.end-b.end);
+  const out = [];
+  for (const s of spans){
+    if (!out.length){ out.push(s); continue; }
+    const last = out[out.length-1];
+    if (s.start <= last.end){
+      if (s.type === last.type && s.end > last.end) last.end = s.end;
+      // else: drop overlapping span (stability > cleverness)
+    } else out.push(s);
   }
-  return clauses;
+  return out;
 }
 
-function renderClause(cl) {
-  let cls = cl.type;
-  let label = cl.type === "main" ? "Main Clause" :
-              cl.type === "sub" ? "Subordinate Clause" :
-              "Relative Clause";
+function escapeHtml(s){
+  return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+}
+function renderTok(tok){
+  const cls = PUNCT.has(tok.text) ? "tok punc" : "tok";
+  return `<span class="${cls}">${escapeHtml(tok.pre + tok.text)}</span>`;
+}
 
-  let html = `<div class="clause ${cls}"><div class="label">${label}</div>`;
-  cl.content.forEach(tok => {
-    let c = "token";
-    if (tok === cl.S) c += " S";
-    if (tok === cl.V) c += " V";
-    html += `<span class="${c}">${tok}`;
-    if (tok === cl.S) html += `<span class="badge">S</span>`;
-    if (tok === cl.V) html += `<span class="badge">V</span>`;
+function renderSentence(tokens, spans, showMarkers=true){
+  const spanAt = new Array(tokens.length).fill(null);
+  for (const sp of spans){
+    for (let k=sp.start;k<=sp.end && k<tokens.length;k++) spanAt[k] = sp.type;
+  }
+
+  let html = '<div class="sentence">';
+  let i=0;
+  while (i < tokens.length){
+    const tp = spanAt[i];
+    if (!tp){
+      html += renderTok(tokens[i]);
+      i++;
+      continue;
+    }
+    let j=i;
+    while (j < tokens.length && spanAt[j] === tp) j++;
+
+    const cls = (tp==="sub") ? "span sub-span" : "span rel-span";
+    html += `<span class="${cls}"><span class="tag">${tp==="sub" ? "Subordinate" : "Relative"} clause</span>`;
+    if (showMarkers) html += `<span class="start-marker">${tp==="sub" ? "SUB" : "REL"}</span>`;
+    for (let k=i;k<j;k++) html += renderTok(tokens[k]);
     html += `</span>`;
-  });
+    i = j;
+  }
   html += "</div>";
   return html;
 }
 
-function analyze() {
-  const text = document.getElementById("input").value;
-  const out = document.getElementById("output");
-  out.innerHTML = "";
+function run(){
+  const out = document.getElementById("out");
+  const text = document.getElementById("input").value.trim();
+  if (!text){ out.innerHTML = '<span style="color:#6b7280">英文を入力してください。</span>'; return; }
 
-  const sentences = nlp(text).sentences().out("array");
-  sentences.forEach(s => {
-    const clauses = analyzeSentence(s);
-    clauses.forEach(c => out.innerHTML += renderClause(c));
-  });
+  if (!safeNLP()){
+    out.innerHTML = `<div class="error">
+      Compromise (nlp) が読み込めていません。<br>
+      GitHub Pagesでは <code class="kbd">vendor/compromise.min.js</code> を置いてください。
+    </div>`;
+    return;
+  }
+
+  const closeAtPunct = document.getElementById("closeAtPunct").checked;
+  const showMarkers = document.getElementById("showStartMarkers").checked;
+
+  const sentences = splitSentences(text);
+  let html = "";
+  for (const s of sentences){
+    const tokens = tokenize(s);
+    const spans = detectSpans(tokens, closeAtPunct);
+    html += renderSentence(tokens, spans, showMarkers);
+  }
+  out.innerHTML = html;
 }
 
-function clearOutput() {
-  document.getElementById("output").innerHTML = "";
-}
+document.getElementById("runBtn").addEventListener("click", run);
+document.getElementById("clearBtn").addEventListener("click", ()=>{ document.getElementById("input").value=""; document.getElementById("out").innerHTML=""; });
+document.getElementById("sampleBtn").addEventListener("click", ()=>{
+  document.getElementById("input").value =
+`When I arrived, the woman who lives next door smiled.
+The man with whom I spoke had gone back home, but the book that I bought yesterday was expensive.
+Although it was raining, I went out.`;
+});
 </script>
-
 </body>
 </html>
