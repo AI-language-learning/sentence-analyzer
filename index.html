@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Clause Boundary Highlighter (No S/V)</title>
+  <title>Clause Boundary Highlighter</title>
 
   <!-- Compromise NLP: CDN with local fallback (recommended for GitHub Pages reliability)
        Put a copy at: ./vendor/compromise.min.js -->
@@ -26,12 +26,11 @@
       --sub:#f59e0b; /* orange */
       --rel:#7c3aed; /* purple */
       --punc:#9ca3af; /* gray */
-      --start:#0ea5e9; /* cyan */
     }
     body{
       margin:0;
       padding:24px;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", sans-serif;
       background:var(--bg);
       color:var(--text);
     }
@@ -45,16 +44,9 @@
       padding: 20px 20px 18px;
     }
     h1{
-      margin: 6px 0 6px;
+      margin: 6px 0 14px;
       text-align:center;
       font-size: 20px;
-    }
-    .sub{
-      text-align:center;
-      color:var(--muted);
-      font-size: 13px;
-      line-height: 1.55;
-      margin: 0 0 14px;
     }
     textarea{
       width:100%;
@@ -77,7 +69,7 @@
       gap:10px;
       justify-content:center;
       align-items:center;
-      margin: 12px 0 14px;
+      margin: 12px 0 12px;
     }
     button{
       border: 1px solid #d1d5db;
@@ -94,13 +86,24 @@
     }
     button:active{ transform: translateY(1px); }
 
+    .opts{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      justify-content:center;
+      align-items:center;
+      margin: 2px 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    label{ cursor:pointer; }
+
     .panel{
       border:1px solid var(--border);
       border-radius: 12px;
       background:#fcfcfd;
       padding: 14px;
     }
-
     .sentence{
       margin: 10px 0 14px;
       line-height: 2.2;
@@ -118,47 +121,16 @@
     }
     .punc{ color: var(--punc); font-weight: 700; }
 
-    /* Clause spans */
+    /* Clause spans (border only — no labels/badges) */
     .span{
       display:inline-block;
       border: 2px solid;
       border-radius: 14px;
       padding: 6px 6px 7px;
       margin: 4px 0;
-      position: relative;
-    }
-    .span > .tag{
-      position:absolute;
-      top:-11px;
-      left:10px;
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing:.02em;
-      padding: 2px 8px;
-      border-radius: 999px;
-      color:white;
-      user-select:none;
-      box-shadow: 0 4px 12px rgba(0,0,0,.12);
     }
     .sub-span{ border-color: var(--sub); }
-    .sub-span > .tag{ background: var(--sub); }
-
     .rel-span{ border-color: var(--rel); }
-    .rel-span > .tag{ background: var(--rel); }
-
-    /* Start markers (informative) */
-    .start-marker{
-      display:inline-block;
-      font-size: 10px;
-      font-weight: 900;
-      color: white;
-      background: var(--start);
-      padding: 1px 6px;
-      border-radius: 999px;
-      margin: 0 4px 0 2px;
-      transform: translateY(-2px);
-      user-select:none;
-    }
 
     .legend{
       display:flex;
@@ -181,19 +153,7 @@
     .sw-sub{ background: var(--sub); }
     .sw-rel{ background: var(--rel); }
     .sw-p{ background: var(--punc); }
-    .sw-s{ background: var(--start); }
 
-    .opts{
-      display:flex;
-      flex-wrap: wrap;
-      gap: 10px 16px;
-      justify-content:center;
-      align-items:center;
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    label{ cursor:pointer; }
     .error{
       margin-top: 12px;
       padding: 12px;
@@ -218,12 +178,8 @@
 <body>
   <div class="container">
     <h1>Clause Boundary Highlighter</h1>
-    <div class="sub">
-      <b>S/V判定はしません</b>。代わりに、<b>節の切れ目（候補）</b>を安定して可視化します。<br>
-      ルールは「目印語（when / who / that 等）＋句読点（, . ;）」中心なので、GitHub Pagesでも壊れにくい設計です。
-    </div>
 
-    <textarea id="input" placeholder="例: When I arrived, the woman who lives next door smiled."></textarea>
+    <textarea id="input" placeholder="Example: When I arrived, the woman who lives next door smiled."></textarea>
 
     <div class="row">
       <button class="primary" id="runBtn">Highlight</button>
@@ -232,21 +188,19 @@
     </div>
 
     <div class="opts">
-      <label><input type="checkbox" id="closeAtPunct" checked> 節は「カンマ/ピリオド/セミコロン」で閉じる（安定）</label>
-      <label><input type="checkbox" id="showStartMarkers" checked> 開始マーカー（SUB/REL）を表示</label>
+      <label><input type="checkbox" id="closeAtPunct" checked> Close spans at punctuation (, . ; ! ?)</label>
     </div>
 
-    <div id="out" class="panel" style="margin-top:12px;"></div>
+    <div id="out" class="panel"></div>
 
     <div class="legend" aria-hidden="true">
-      <div><span class="swatch sw-sub"></span>Subordinate clause span</div>
-      <div><span class="swatch sw-rel"></span>Relative clause span</div>
-      <div><span class="swatch sw-s"></span>Clause-start marker</div>
+      <div><span class="swatch sw-sub"></span>Subordinate span</div>
+      <div><span class="swatch sw-rel"></span>Relative span</div>
       <div><span class="swatch sw-p"></span>Punctuation</div>
     </div>
 
     <div style="margin-top:10px;color:var(--muted);font-size:12px;line-height:1.6;">
-      CDN不調対策：<code class="kbd">vendor/compromise.min.js</code> をリポジトリに置くとローカル読み込みできます。
+      CDN fallback: place <code class="kbd">vendor/compromise.min.js</code> in your repo.
     </div>
   </div>
 
@@ -294,7 +248,6 @@ function detectSpans(tokens, closeAtPunct=true){
     const t = tokens[i];
     const w = t.lower;
 
-    // subordinate clause start
     if (SUB_WORDS.has(w)){
       const start = i;
       let end = tokens.length - 1;
@@ -308,7 +261,6 @@ function detectSpans(tokens, closeAtPunct=true){
       continue;
     }
 
-    // relative clause start
     const prev = tokens[i-1];
     const prev2 = tokens[i-2];
     const isPrepRel = PREPS.has(prev?.lower || "") && (w==="whom" || w==="which");
@@ -337,7 +289,6 @@ function detectSpans(tokens, closeAtPunct=true){
     const last = out[out.length-1];
     if (s.start <= last.end){
       if (s.type === last.type && s.end > last.end) last.end = s.end;
-      // else: drop overlapping span (stability > cleverness)
     } else out.push(s);
   }
   return out;
@@ -351,7 +302,7 @@ function renderTok(tok){
   return `<span class="${cls}">${escapeHtml(tok.pre + tok.text)}</span>`;
 }
 
-function renderSentence(tokens, spans, showMarkers=true){
+function renderSentence(tokens, spans){
   const spanAt = new Array(tokens.length).fill(null);
   for (const sp of spans){
     for (let k=sp.start;k<=sp.end && k<tokens.length;k++) spanAt[k] = sp.type;
@@ -370,8 +321,7 @@ function renderSentence(tokens, spans, showMarkers=true){
     while (j < tokens.length && spanAt[j] === tp) j++;
 
     const cls = (tp==="sub") ? "span sub-span" : "span rel-span";
-    html += `<span class="${cls}"><span class="tag">${tp==="sub" ? "Subordinate" : "Relative"} clause</span>`;
-    if (showMarkers) html += `<span class="start-marker">${tp==="sub" ? "SUB" : "REL"}</span>`;
+    html += `<span class="${cls}">`;
     for (let k=i;k<j;k++) html += renderTok(tokens[k]);
     html += `</span>`;
     i = j;
@@ -383,25 +333,24 @@ function renderSentence(tokens, spans, showMarkers=true){
 function run(){
   const out = document.getElementById("out");
   const text = document.getElementById("input").value.trim();
-  if (!text){ out.innerHTML = '<span style="color:#6b7280">英文を入力してください。</span>'; return; }
+  if (!text){ out.innerHTML = '<span style="color:#6b7280">Enter an English sentence.</span>'; return; }
 
   if (!safeNLP()){
     out.innerHTML = `<div class="error">
-      Compromise (nlp) が読み込めていません。<br>
-      GitHub Pagesでは <code class="kbd">vendor/compromise.min.js</code> を置いてください。
+      Compromise (nlp) is not loaded.<br>
+      For GitHub Pages, place <code class="kbd">vendor/compromise.min.js</code> in your repo.
     </div>`;
     return;
   }
 
   const closeAtPunct = document.getElementById("closeAtPunct").checked;
-  const showMarkers = document.getElementById("showStartMarkers").checked;
 
   const sentences = splitSentences(text);
   let html = "";
   for (const s of sentences){
     const tokens = tokenize(s);
     const spans = detectSpans(tokens, closeAtPunct);
-    html += renderSentence(tokens, spans, showMarkers);
+    html += renderSentence(tokens, spans);
   }
   out.innerHTML = html;
 }
